@@ -19,7 +19,7 @@ import hl2ss_3dcv
 # Settings --------------------------------------------------------------------
 
 # HoloLens address
-host = '192.168.178.45'
+host = '172.21.98.21'
 
 # Calibration path (must exist but can be empty)
 calibration_path = '../calibration'

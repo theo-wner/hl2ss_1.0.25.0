@@ -7,33 +7,39 @@ Furthermore, for each image, a pointcloud is calculated from the depth image.
 These get added together to form one large pointcloud of the captured scene. 
 
 TODO:
-- convert depth image to pointcloud (open3d_pointcloud.py)
-- add all temporary pointclouds together
+- Mask out Points further away than 3m
+- Save pointcloud to file
+- Save poses to file
+- Save images to file
+- Save calibration data to file
+- Add command line arguments
 
 @Author Theodor Kapler
 @Author Michael Fessenbecker
 @Author Felix Birkelbach
 '''
 
-import open3d as o3d
 from pynput import keyboard
-import numpy as np
 import multiprocessing as mp
+import numpy as np
+import open3d as o3d
 import cv2
 import hl2ss_imshow
-import hl2ss_3dcv
 import hl2ss
+import hl2ss_lnm
 import hl2ss_mp
+import hl2ss_3dcv
 import time
 
 # =============================================================================
 # Initialize Keyboard Listener
 # =============================================================================
-class MyListener(keyboard.Listener):
+class MyListener:
     def __init__(self):
-        super(MyListener, self).__init__(self.on_press)
         self.space_pressed = False
         self.esc_pressed = False
+        self.listener = keyboard.Listener(on_press=self.on_press, suppress=False)
+        self.listener.start()
 
     def on_press(self, key):
         if key == keyboard.Key.space:
@@ -46,131 +52,128 @@ class MyListener(keyboard.Listener):
 # =============================================================================
 # General Settings
 # -----------------------------------------------------------------------------
-host = '192.168.178.45' # Hololens address
-
-ports = [
-    hl2ss.StreamPort.PERSONAL_VIDEO,
-    hl2ss.StreamPort.RM_DEPTH_LONGTHROW
-    ]
-
-buffer_elements = 60 # Maximum number of frames in buffer
+host = '172.21.98.21' # Hololens address
+buffer_length = 10 # Buffer length in seconds
 
 # Settings for Personal Video
 # -----------------------------------------------------------------------------
 mode_pv = hl2ss.StreamMode.MODE_1 # Operating mode
 port_pv = hl2ss.StreamPort.PERSONAL_VIDEO
-chunksize_pv = hl2ss.ChunkSize.PERSONAL_VIDEO
 width_pv = 1920
 height_pv = 1080
 framerate_pv = 30
-profile_pv = hl2ss.VideoProfile.H265_MAIN
-bitrate_pv = 5*1024*1024
-decoded_format_pv = 'bgr24'
-calibration_path_pv = '../calibration_pv'
-poses_path_pv = '../poses_pv'
-images_path_pv = '../images_pv'
 
 # Settings for Depth image
 # -----------------------------------------------------------------------------
 mode_depth = hl2ss.StreamMode.MODE_1 # Operating mode
 port_depth = hl2ss.StreamPort.RM_DEPTH_LONGTHROW
-chunksize_depth = hl2ss.ChunkSize.RM_DEPTH_LONGTHROW
-filter_depth = hl2ss.PngFilterMode.Paeth
-max_depth = 3.0
+width_depth = hl2ss.Parameters_RM_DEPTH_LONGTHROW.WIDTH
+height_depth = hl2ss.Parameters_RM_DEPTH_LONGTHROW.HEIGHT
+framerate_depth = hl2ss.Parameters_RM_DEPTH_LONGTHROW.FPS
 
 # =============================================================================
-# Calibrations and Producer, etc..
-# Order of appearnace is important for the code!
+# Main function
 # =============================================================================
-# Start Subsystem for PV
-# -----------------------------------------------------------------------------
-hl2ss.start_subsystem_pv(host, hl2ss.StreamPort.PERSONAL_VIDEO)
+if __name__ == '__main__':
 
-# Compute and show PV Calibration data
-# -----------------------------------------------------------------------------
-calibration_pv = hl2ss.download_calibration_pv(host, port_pv, width_pv, height_pv, framerate_pv)
-print('Calibration')
-print(calibration_pv.focal_length)
-print(calibration_pv.principal_point)
-print(calibration_pv.radial_distortion)
-print(calibration_pv.tangential_distortion)
-print(calibration_pv.projection)
-print(calibration_pv.intrinsics)
+    # Start Subsystem for PV
+    # -----------------------------------------------------------------------------
+    hl2ss_lnm.start_subsystem_pv(host, port_pv)
 
-# Create Producer, Manager and Sinks for multi Sensor streaming
-# -----------------------------------------------------------------------------
-producer = hl2ss_mp.producer()
-producer = hl2ss_mp.producer()
-producer.configure_rm_depth_longthrow(True, host, port_depth, chunksize_depth, mode_depth, filter_depth)
-producer.configure_pv(True, host, port_pv, chunksize_pv, mode_pv, width_pv, height_pv, framerate_pv, profile_pv, bitrate_pv, decoded_format_pv)
+    # Start PV and RM Depth Long Throw streams
+    # -----------------------------------------------------------------------------
+    producer = hl2ss_mp.producer()
+    producer.configure(port_pv, hl2ss_lnm.rx_pv(host, port_pv, width=width_pv, height=height_pv, framerate=framerate_pv, decoded_format='rgb24'))
+    producer.configure(port_depth, hl2ss_lnm.rx_rm_depth_longthrow(host, port_depth))
+    producer.initialize(port_pv, framerate_pv * buffer_length)
+    producer.initialize(port_depth, framerate_depth * buffer_length)
+    producer.start(port_pv)
+    producer.start(port_depth)
 
-for port in ports:
-    producer.initialize(port, buffer_elements)
-    producer.start(port)
+    consumer = hl2ss_mp.consumer()
+    manager = mp.Manager()
+    sink_pv = consumer.create_sink(producer, port_pv, manager, None)
+    sink_depth = consumer.create_sink(producer, port_depth, manager, ...)
 
-manager = mp.Manager()
-consumer = hl2ss_mp.consumer()
-sinks = {}
+    sink_pv.get_attach_response()
+    sink_depth.get_attach_response()
 
-for port in ports:
-    sinks[port] = consumer.create_sink(producer, port, manager, None)
-    sinks[port].get_attach_response()
+    # Get RM Depth Long Throw calibration
+    # Calibration data will be downloaded if it's not in the calibration folder
+    # -----------------------------------------------------------------------------
+    calibration_lt = hl2ss_3dcv.get_calibration_rm(host, port_depth, '../calibration')
 
-# Compute Depth Calibration Data for calculating pointcloud
-# -----------------------------------------------------------------------------
-calibration_depth = hl2ss_3dcv.get_calibration_rm(host, port_depth, '../calibration')
-xy1, scale = hl2ss_3dcv.rm_depth_compute_rays(calibration_depth.uv2xy, calibration_depth.scale)
+    uv2xy = hl2ss_3dcv.compute_uv2xy(calibration_lt.intrinsics, width_depth, height_depth)
+    xy1, scale = hl2ss_3dcv.rm_depth_compute_rays(uv2xy, calibration_lt.scale)
+ 
+    # Create Open3D visualizer
+    # -----------------------------------------------------------------------------
+    o3d_lt_intrinsics = o3d.camera.PinholeCameraIntrinsic(width_depth, height_depth, calibration_lt.intrinsics[0, 0], calibration_lt.intrinsics[1, 1], calibration_lt.intrinsics[2, 0], calibration_lt.intrinsics[2, 1])
+    vis = o3d.visualization.Visualizer()
+    vis.create_window()
+    pcd = o3d.geometry.PointCloud()
+    first_pcd = True
 
-# =============================================================================
-# Capturing
-# =============================================================================
-listener = MyListener()
-listener.start()
+    # Initialize Keyboard Listener
+    # -----------------------------------------------------------------------------
+    listener = MyListener()
 
-# Capture Loop
-# ----------------------------------------------------------------------------- 
-print('Ready to capture') 
+    # =============================================================================
+    # Main Loop
+    # =============================================================================
+    while True:
+        vis.poll_events() # Wait for space button to be pressed
+        vis.update_renderer()
 
-xyz = np.empty((0, 3))
+        if listener.esc_pressed: # Exit program
+            break
 
-while True:
-    if listener.esc_pressed:
-        break
+        if listener.space_pressed:
+            # Get most recent PV and RM Depth Long Throw frames
+            # -----------------------------------------------------------------------------
+            _, data_lt = sink_depth.get_most_recent_frame()
+            if ((data_lt is None) or (not hl2ss.is_valid_pose(data_lt.pose))):
+                continue
 
-    if listener.space_pressed:
-        _, data_pv = sinks[port_pv].get_most_recent_frame()
-        _, data_depth = sinks[port_depth].get_most_recent_frame()
-          
-        if (data_pv is not None) and (data_depth is not None):
-            print('Pose at time {ts}'.format(ts=data_pv.timestamp))
-            print(data_pv.pose)
-            print('Focal length')
-            print(data_pv.payload.focal_length)
-            print('Principal point')
-            print(data_pv.payload.principal_point)
-            cv2.imshow('Video', data_pv.payload.image)
-            cv2.waitKey(1)
-            
-            depth = hl2ss_3dcv.rm_depth_normalize(data_depth.payload.depth, scale)
-            xyz_tmp = hl2ss_3dcv.rm_depth_to_points(depth, xy1)
-            xyz_tmp = hl2ss_3dcv.block_to_list(xyz_tmp)
-            xyz_tmp = xyz_tmp[(xyz_tmp[:, 2] > 0) & (xyz_tmp[:, 2] < max_depth), :] 
-            print(xyz_tmp.shape)
-            xyz = np.vstack((xyz, xyz_tmp))
-            print(xyz.shape)
+            _, data_pv = sink_pv.get_nearest(data_lt.timestamp)
+            if ((data_pv is None) or (not hl2ss.is_valid_pose(data_pv.pose))):
+                continue
 
-            pcd = o3d.geometry.PointCloud()
-            pcd.points = o3d.utility.Vector3dVector(xyz)
-            o3d.visualization.draw_geometries([pcd])
-            
-        listener.space_pressed = False
-# =============================================================================
-# Closing Stuff
-# =============================================================================       
-for port in ports:
-    sinks[port].detach()
+            # Undistort and normalize depth image
+            # -----------------------------------------------------------------------------
+            depth = hl2ss_3dcv.rm_depth_undistort(data_lt.payload.depth, calibration_lt.undistort_map)
+            depth = hl2ss_3dcv.rm_depth_normalize(depth, scale)
 
-for port in ports:
-    producer.stop(port)
+            # Calculate pointcloud from depth image
+            # -----------------------------------------------------------------------------
+            lt_points         = hl2ss_3dcv.rm_depth_to_points(xy1, depth)
+            lt_to_world       = hl2ss_3dcv.camera_to_rignode(calibration_lt.extrinsics) @ hl2ss_3dcv.reference_to_world(data_lt.pose)
+            world_points      = hl2ss_3dcv.transform(lt_points, lt_to_world)
+            world_points = world_points.reshape(-1, 3)
 
-hl2ss.stop_subsystem_pv(host, hl2ss.StreamPort.PERSONAL_VIDEO)
+            # Extend pointcloud
+            # -----------------------------------------------------------------------------
+            world_points = o3d.utility.Vector3dVector(world_points)
+            pcd.points.extend(world_points)
+
+            if (first_pcd):
+                vis.add_geometry(pcd)
+                first_pcd = False
+            else:
+                vis.update_geometry(pcd)
+
+            vis.poll_events()
+            vis.update_renderer()
+                
+            listener.space_pressed = False
+
+    # =============================================================================
+    # Close Stuff
+    # =============================================================================
+    sink_pv.detach()
+    sink_depth.detach()
+
+    producer.stop(port_pv)
+    producer.stop(port_depth)
+
+    hl2ss_lnm.stop_subsystem_pv(host, port_pv)
