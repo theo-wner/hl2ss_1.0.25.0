@@ -6,8 +6,11 @@ These are then saved to directory together with their respective poses.
 Furthermore, for each image, a pointcloud is calculated from the depth image. 
 These get added together to form one large pointcloud of the captured scene. 
 
+Press space to capture an image
+Press escape to exit the program and show the final pointcloud
+Press escape again to close the program
+
 TODO:
-- Mask out Points further away than 3m
 - Save pointcloud to file
 - Save poses to file
 - Save images to file
@@ -20,6 +23,7 @@ TODO:
 '''
 
 from pynput import keyboard
+from pynput import mouse
 import multiprocessing as mp
 import numpy as np
 import open3d as o3d
@@ -29,7 +33,6 @@ import hl2ss
 import hl2ss_lnm
 import hl2ss_mp
 import hl2ss_3dcv
-import time
 
 # =============================================================================
 # Initialize Keyboard Listener
@@ -38,14 +41,21 @@ class MyListener:
     def __init__(self):
         self.space_pressed = False
         self.esc_pressed = False
-        self.listener = keyboard.Listener(on_press=self.on_press, suppress=False)
-        self.listener.start()
+        self.left_pressed = False
+        self.keyboard_listener = keyboard.Listener(on_press=self.on_key_press, suppress=False)
+        self.mouse_listener = mouse.Listener(on_click=self.on_mouse_click)
+        self.keyboard_listener.start()
+        self.mouse_listener.start()
 
-    def on_press(self, key):
+    def on_key_press(self, key):
         if key == keyboard.Key.space:
             self.space_pressed = True
         elif key == keyboard.Key.esc:
             self.esc_pressed = True
+
+    def on_mouse_click(self, x, y, button, pressed):
+        if button == mouse.Button.left:
+            self.left_pressed = True
 
 # =============================================================================
 # Set Settings
@@ -54,6 +64,8 @@ class MyListener:
 # -----------------------------------------------------------------------------
 host = '172.21.98.21' # Hololens address
 buffer_length = 10 # Buffer length in seconds
+voxel_size = 0.01 # Voxel Downsampling Parameter
+max_depth = 3.0 # Maximum depth in meters
 
 # Settings for Personal Video
 # -----------------------------------------------------------------------------
@@ -101,14 +113,14 @@ if __name__ == '__main__':
     # Get RM Depth Long Throw calibration
     # Calibration data will be downloaded if it's not in the calibration folder
     # -----------------------------------------------------------------------------
-    calibration_lt = hl2ss_3dcv.get_calibration_rm(host, port_depth, '../calibration')
+    calibration_depth = hl2ss_3dcv.get_calibration_rm(host, port_depth, '../calibration')
 
-    uv2xy = hl2ss_3dcv.compute_uv2xy(calibration_lt.intrinsics, width_depth, height_depth)
-    xy1, scale = hl2ss_3dcv.rm_depth_compute_rays(uv2xy, calibration_lt.scale)
- 
+    uv2xy = hl2ss_3dcv.compute_uv2xy(calibration_depth.intrinsics, width_depth, height_depth)
+    xy1, scale = hl2ss_3dcv.rm_depth_compute_rays(uv2xy, calibration_depth.scale)
+
     # Create Open3D visualizer
     # -----------------------------------------------------------------------------
-    o3d_lt_intrinsics = o3d.camera.PinholeCameraIntrinsic(width_depth, height_depth, calibration_lt.intrinsics[0, 0], calibration_lt.intrinsics[1, 1], calibration_lt.intrinsics[2, 0], calibration_lt.intrinsics[2, 1])
+    o3d_lt_intrinsics = o3d.camera.PinholeCameraIntrinsic(width_depth, height_depth, calibration_depth.intrinsics[0, 0], calibration_depth.intrinsics[1, 1], calibration_depth.intrinsics[2, 0], calibration_depth.intrinsics[2, 1])
     vis = o3d.visualization.Visualizer()
     vis.create_window()
     pcd = o3d.geometry.PointCloud()
@@ -125,37 +137,72 @@ if __name__ == '__main__':
         vis.poll_events() # Wait for space button to be pressed
         vis.update_renderer()
 
-        if listener.esc_pressed: # Exit program
+        if listener.esc_pressed: # Exit program, wait until user presses escape button again
+            listener.esc_pressed = False
+            while True:
+                vis.poll_events()
+                vis.update_renderer()
+                if listener.esc_pressed:
+                    break
             break
 
         if listener.space_pressed:
             # Get most recent PV and RM Depth Long Throw frames
             # -----------------------------------------------------------------------------
-            _, data_lt = sink_depth.get_most_recent_frame()
-            if ((data_lt is None) or (not hl2ss.is_valid_pose(data_lt.pose))):
+            _, data_depth = sink_depth.get_most_recent_frame()
+            if ((data_depth is None) or (not hl2ss.is_valid_pose(data_depth.pose))):
                 continue
 
-            _, data_pv = sink_pv.get_nearest(data_lt.timestamp)
+            _, data_pv = sink_pv.get_nearest(data_depth.timestamp)
             if ((data_pv is None) or (not hl2ss.is_valid_pose(data_pv.pose))):
                 continue
+            
+            # Show PV image
+            # -----------------------------------------------------------------------------
+            image_rgb = data_pv.payload.image
+            image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
+            cv2.imshow('Image', image_bgr)
+            cv2.waitKey(1)
+
+            # Print PV Pose and Intrinsics
+            # -----------------------------------------------------------------------------
+            print(f'Pose at time {data_pv.timestamp}')
+            print(data_pv.pose)
+            print(f'Focal length: {data_pv.payload.focal_length}')
+            print(f'Principal point: {data_pv.payload.principal_point}')
 
             # Undistort and normalize depth image
             # -----------------------------------------------------------------------------
-            depth = hl2ss_3dcv.rm_depth_undistort(data_lt.payload.depth, calibration_lt.undistort_map)
+            depth = hl2ss_3dcv.rm_depth_undistort(data_depth.payload.depth, calibration_depth.undistort_map)
             depth = hl2ss_3dcv.rm_depth_normalize(depth, scale)
+
+            # Mask out points further away than 3m
+            # -----------------------------------------------------------------------------
+            depth[depth > max_depth] = 0
 
             # Calculate pointcloud from depth image
             # -----------------------------------------------------------------------------
-            lt_points         = hl2ss_3dcv.rm_depth_to_points(xy1, depth)
-            lt_to_world       = hl2ss_3dcv.camera_to_rignode(calibration_lt.extrinsics) @ hl2ss_3dcv.reference_to_world(data_lt.pose)
-            world_points      = hl2ss_3dcv.transform(lt_points, lt_to_world)
+            depth_points         = hl2ss_3dcv.rm_depth_to_points(xy1, depth)
+            depth_to_world       = hl2ss_3dcv.camera_to_rignode(calibration_depth.extrinsics) @ hl2ss_3dcv.reference_to_world(data_depth.pose)
+            world_points      = hl2ss_3dcv.transform(depth_points, depth_to_world)
             world_points = world_points.reshape(-1, 3)
 
-            # Extend pointcloud
+            # Extend old pointcloud
             # -----------------------------------------------------------------------------
             world_points = o3d.utility.Vector3dVector(world_points)
             pcd.points.extend(world_points)
 
+            # Downsampling der Punktwolke
+            pcd_downsampled = pcd.voxel_down_sample(voxel_size)
+
+            # Set color and size of pointcloud
+            # -----------------------------------------------------------------------------
+            pcd_downsampled.colors = o3d.utility.Vector3dVector([[.5, .5, .5]]*len(pcd_downsampled.points)) # Set color of pointcloud
+            vis.get_render_option().point_size = 1 # Set size of points in pointcloud
+
+            pcd.points = pcd_downsampled.points
+            pcd.colors = pcd_downsampled.colors
+            
             if (first_pcd):
                 vis.add_geometry(pcd)
                 first_pcd = False
@@ -164,7 +211,7 @@ if __name__ == '__main__':
 
             vis.poll_events()
             vis.update_renderer()
-                
+            
             listener.space_pressed = False
 
     # =============================================================================
