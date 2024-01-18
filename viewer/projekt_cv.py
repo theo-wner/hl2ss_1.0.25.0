@@ -12,9 +12,6 @@ Press escape again to close the program
 
 TODO:
 - Save pointcloud to file
-- Save poses to file
-- Save images to file
-- Save calibration data to file
 - Add command line arguments
 
 @Author Theodor Kapler
@@ -33,6 +30,8 @@ import hl2ss
 import hl2ss_lnm
 import hl2ss_mp
 import hl2ss_3dcv
+import os
+import glob
 
 # =============================================================================
 # Initialize Keyboard Listener
@@ -56,6 +55,13 @@ class MyListener:
     def on_mouse_click(self, x, y, button, pressed):
         if button == mouse.Button.left:
             self.left_pressed = True
+
+# =============================================================================
+# Clear directory
+# =============================================================================
+files = glob.glob('../images/*')
+for f in files:
+    os.remove(f)
 
 # =============================================================================
 # Set Settings
@@ -130,6 +136,10 @@ if __name__ == '__main__':
     # -----------------------------------------------------------------------------
     listener = MyListener()
 
+    # Open File to save poses
+    # -----------------------------------------------------------------------------
+    f = open('../images/poses.txt', 'w')
+
     # =============================================================================
     # Main Loop
     # =============================================================================
@@ -164,12 +174,23 @@ if __name__ == '__main__':
             cv2.imshow('Image', image_bgr)
             cv2.waitKey(1)
 
+            # Save PV image
+            # -----------------------------------------------------------------------------
+            cv2.imwrite(f'../images/image_{data_pv.timestamp}.png', image_rgb)
+
             # Print PV Pose and Intrinsics
             # -----------------------------------------------------------------------------
-            print(f'Pose at time {data_pv.timestamp}')
+            print(f'Pose PV at time {data_pv.timestamp}')
             print(data_pv.pose)
             print(f'Focal length: {data_pv.payload.focal_length}')
             print(f'Principal point: {data_pv.payload.principal_point}')
+
+            # Save PV Pose and Intrinsics into the same txt File
+            # -----------------------------------------------------------------------------
+            f.write(f'Pose PV at time {data_pv.timestamp}\n')
+            f.write(str(data_pv.pose))
+            f.write(f'\nFocal length: {data_pv.payload.focal_length}\n')
+            f.write(f'Principal point: {data_pv.payload.principal_point}\n\n')
 
             # Undistort and normalize depth image
             # -----------------------------------------------------------------------------
@@ -217,6 +238,8 @@ if __name__ == '__main__':
     # =============================================================================
     # Close Stuff
     # =============================================================================
+    f.close()
+
     sink_pv.detach()
     sink_depth.detach()
 
