@@ -23,3 +23,5 @@ extensions/client_cpp/.vscode/
 extensions/client_matlab/.vscode/
 calibration/*
 !/calibration/README.md
+images/
+data/

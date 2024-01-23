@@ -138,7 +138,7 @@ if __name__ == '__main__':
 
     # Open File to save poses
     # -----------------------------------------------------------------------------
-    f = open('../images/poses.txt', 'w')
+    f = open('../data/poses.txt', 'w')
 
     # =============================================================================
     # Main Loop
@@ -153,6 +153,9 @@ if __name__ == '__main__':
                 vis.poll_events()
                 vis.update_renderer()
                 if listener.esc_pressed:
+                    # Save pointcloud to file
+                    # -----------------------------------------------------------------------------
+                    o3d.io.write_point_cloud('../data/points3d.ply', pcd, write_ascii=True, )
                     break
             break
 
@@ -176,7 +179,8 @@ if __name__ == '__main__':
 
             # Save PV image
             # -----------------------------------------------------------------------------
-            cv2.imwrite(f'../images/image_{data_pv.timestamp}.png', image_rgb)
+            img_name = f'image_{data_pv.timestamp}.png'
+            cv2.imwrite(f'../data/images/{img_name}', image_bgr)
 
             # Print PV Pose and Intrinsics
             # -----------------------------------------------------------------------------
