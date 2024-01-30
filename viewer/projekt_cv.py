@@ -10,8 +10,7 @@ Press space to capture an image
 Press escape to exit the program and show the final pointcloud
 Press escape again to close the program
 
-TODO:
-- Save pointcloud to file
+TODO:   
 - Add command line arguments
 
 @Author Theodor Kapler

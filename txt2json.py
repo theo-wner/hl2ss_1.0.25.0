@@ -25,13 +25,13 @@ def parse_poses(content):
         matrix_np = np.array(matrix)
 
         # Define the rotation matrix (Rotation by x axis)
-        rotation = np.array([[1, 0, 0, 0],
+        rotation = [[1, 0, 0, 0],
                             [0, 0, -1, 0],
                             [0, 1, 0, 0],
-                            [0, 0, 0, 1]])
+                            [0, 0, 0, 1]]
         
         # Multiply the rotation matrix with the pose matrix
-        matrix_np = np.matmul(rotation, matrix_np)
+        matrix = rotation @ matrix_np
 
         # Rearange to a list of lists
         matrix = matrix_np.tolist()
