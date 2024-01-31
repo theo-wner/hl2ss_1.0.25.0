@@ -29,8 +29,7 @@ import hl2ss
 import hl2ss_lnm
 import hl2ss_mp
 import hl2ss_3dcv
-import os
-import glob
+import shutil
 
 # =============================================================================
 # Initialize Keyboard Listener
@@ -58,9 +57,14 @@ class MyListener:
 # =============================================================================
 # Clear directory
 # =============================================================================
-files = glob.glob('../images/*')
-for f in files:
-    os.remove(f)
+# Remove folder data with all its subfolders and files
+if shutil.os.path.exists('../data'):
+    shutil.rmtree('../data')
+
+# Create folder data and subfolder images
+if not shutil.os.path.exists('../data'):
+    shutil.os.mkdir('../data')
+    shutil.os.mkdir('../data/images')
 
 # =============================================================================
 # Set Settings
