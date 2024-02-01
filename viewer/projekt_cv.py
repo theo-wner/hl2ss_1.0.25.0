@@ -156,6 +156,10 @@ if __name__ == '__main__':
                 vis.poll_events()
                 vis.update_renderer()
                 if listener.esc_pressed:
+                    # Generate normals for pointcloud
+                    # -----------------------------------------------------------------------------
+                    pcd.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30))
+                    
                     # Save pointcloud to file
                     # -----------------------------------------------------------------------------
                     o3d.io.write_point_cloud('../data/points3d.ply', pcd, write_ascii=True, )
