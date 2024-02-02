@@ -1,0 +1,4 @@
+pynput
+open3d
+opencv-python-headless
+av
