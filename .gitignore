@@ -25,3 +25,4 @@ calibration/*
 !/calibration/README.md
 images/
 data/
+*.zip
