@@ -30,6 +30,7 @@ import hl2ss_lnm
 import hl2ss_mp
 import hl2ss_3dcv
 import shutil
+import os
 
 # =============================================================================
 # Initialize Keyboard Listener
@@ -58,13 +59,15 @@ class MyListener:
 # Clear directory
 # =============================================================================
 # Remove folder data with all its subfolders and files
-if shutil.os.path.exists('../data'):
-    shutil.rmtree('../data')
+data_path = os.path.join('..', 'data')
+if shutil.os.path.exists(data_path):
+    shutil.rmtree(data_path)
 
 # Create folder data and subfolder images
-if not shutil.os.path.exists('../data'):
-    shutil.os.mkdir('../data')
-    shutil.os.mkdir('../data/images')
+images_path = os.path.join(data_path, 'images')
+if not shutil.os.path.exists(data_path):
+    shutil.os.mkdir(data_path)
+    shutil.os.mkdir(images_path)
 
 # =============================================================================
 # Set Settings
@@ -122,7 +125,8 @@ if __name__ == '__main__':
     # Get RM Depth Long Throw calibration
     # Calibration data will be downloaded if it's not in the calibration folder
     # -----------------------------------------------------------------------------
-    calibration_depth = hl2ss_3dcv.get_calibration_rm(host, port_depth, '../calibration')
+    calibration_path = os.path.join('..', 'calibration')
+    calibration_depth = hl2ss_3dcv.get_calibration_rm(host, port_depth, calibration_path)
 
     uv2xy = hl2ss_3dcv.compute_uv2xy(calibration_depth.intrinsics, width_depth, height_depth)
     xy1, scale = hl2ss_3dcv.rm_depth_compute_rays(uv2xy, calibration_depth.scale)
@@ -141,7 +145,8 @@ if __name__ == '__main__':
 
     # Open File to save poses
     # -----------------------------------------------------------------------------
-    f = open('../data/poses.txt', 'w')
+    poses_path = os.path.join(data_path, 'poses.txt')
+    f = open(poses_path, 'w')
 
     # =============================================================================
     # Main Loop
@@ -163,7 +168,8 @@ if __name__ == '__main__':
                     
                     # Save pointcloud to file
                     # -----------------------------------------------------------------------------
-                    o3d.io.write_point_cloud('../data/points3d.ply', pcd, write_ascii=True, )
+                    pcd_path = os.path.join(data_path, 'points3d.ply')
+                    o3d.io.write_point_cloud(pcd_path, pcd, write_ascii=True, )
                     break
             break
 
@@ -190,8 +196,9 @@ if __name__ == '__main__':
 
             # Save PV image
             # -----------------------------------------------------------------------------
-            #img_name = f'image_{data_pv.timestamp}.png'
-            cv2.imwrite(f'../data/images/{cnt}', image_bgr)
+            image_name = f'image_{str(cnt)}.png'
+            image_path = os.path.join(images_path, image_name)
+            cv2.imwrite(image_path, image_bgr)
 
             # Print PV Pose and Intrinsics
             # -----------------------------------------------------------------------------
