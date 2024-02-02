@@ -74,8 +74,8 @@ if not shutil.os.path.exists(data_path):
 # =============================================================================
 # General Settings
 # -----------------------------------------------------------------------------
-#host = '172.21.98.21' # Hololens address KIT IoU
-host = '172.20.10.2' # Hololens address WLAN von Theodor
+host = '172.21.98.21' # Hololens address KIT IoU
+#host = '172.20.10.2' # Hololens address WLAN von Theodor
 buffer_length = 10 # Buffer length in seconds
 voxel_size = 0.01 # Voxel Downsampling Parameter
 max_depth = 3.0 # Maximum depth in meters
@@ -175,8 +175,7 @@ if __name__ == '__main__':
             break
 
         if listener.space_pressed:
-            # Increment counter
-            cnt += 1
+            cnt += 1 # Increment counter
 
             # Get most recent PV and RM Depth Long Throw frames
             # -----------------------------------------------------------------------------
@@ -203,6 +202,7 @@ if __name__ == '__main__':
 
             # Print PV Pose and Intrinsics
             # -----------------------------------------------------------------------------
+            print(f'Image: {image_name}')
             print(f'Pose PV at time {data_pv.timestamp}')
             print(data_pv.pose)
             print(f'Focal length: {data_pv.payload.focal_length}')
@@ -210,6 +210,7 @@ if __name__ == '__main__':
 
             # Save PV Pose and Intrinsics into the same txt File
             # -----------------------------------------------------------------------------
+            f.write(f'Image: {image_name}\n')
             f.write(f'Pose PV at time {data_pv.timestamp}\n')
             f.write(str(data_pv.pose))
             f.write(f'\nFocal length: {data_pv.payload.focal_length}\n')

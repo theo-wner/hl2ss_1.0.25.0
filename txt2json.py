@@ -1,3 +1,12 @@
+# Define the rotation matrix (Rotation by x axis)
+#rotation = [[1, 0, 0, 0],
+#                    [0, 0, -1, 0],
+#                   [0, 1, 0, 0],
+#                    [0, 0, 0, 1]]
+
+# Multiply the rotation matrix with the pose matrix
+#matrix = rotation @ matrix_np
+
 import re
 import json
 import math
@@ -10,33 +19,20 @@ def read_pose_file(file_path):
 
 def parse_poses(content):
     pose_list = []
-    pose_pattern = re.compile(r'Pose PV at time (\d+)(.*?)\[\[(.*?)\]\]', re.DOTALL)
+    pose_pattern = re.compile(r'Image: (.*?)\nPose PV at time (\d+)(.*?)\[\[(.*?)\]\]', re.DOTALL)
 
     matches = pose_pattern.findall(content)
     for match in matches:
-        timestamp = int(match[0])
-        matrix_content = match[2].strip()
+        image_name = match[0].strip()
+        timestamp = int(match[1])
+        matrix_content = match[3].strip()
         matrix_lines = matrix_content.split('\n')
 
         # Extract numbers between square brackets and split on whitespace
         matrix = [list(map(float, re.findall(r'[-+]?\d*\.\d+|[-+]?\d+', line))) for line in matrix_lines]
 
-        # Create numpy array
-        matrix_np = np.array(matrix)
-
-        # Define the rotation matrix (Rotation by x axis)
-        rotation = [[1, 0, 0, 0],
-                            [0, 0, -1, 0],
-                            [0, 1, 0, 0],
-                            [0, 0, 0, 1]]
-        
-        # Multiply the rotation matrix with the pose matrix
-        matrix = rotation @ matrix_np
-
-        # Rearange to a list of lists
-        matrix = matrix_np.tolist()
-
         pose_list.append({
+            "image_name": image_name,
             "timestamp": timestamp,
             "transform_matrix": matrix
         })
@@ -59,7 +55,7 @@ def create_json_output(poses, w, h, fl_x, fl_y, cx, cy, angle_x, angle_y):
         "h": h,
         "frames": [
             {
-                "file_path": f"./images/image_{pose['timestamp']}",
+                "file_path": f"./images/{pose['image_name']}",
                 "transform_matrix": [list(row) for row in zip(*pose["transform_matrix"])]  # Transpose the matrix
             }
             for pose in poses
@@ -72,7 +68,7 @@ def save_json_output(output, output_path):
     with open(output_path, 'w') as json_file:
         json.dump(output, json_file, indent=2)
 
-# Parameters
+# Parameters --> Fill out by hand!!!
 w = 1920
 h = 1080
 fl_x = 1458.7411
