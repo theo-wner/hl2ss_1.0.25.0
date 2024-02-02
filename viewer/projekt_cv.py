@@ -74,7 +74,8 @@ if not shutil.os.path.exists(data_path):
 # =============================================================================
 # General Settings
 # -----------------------------------------------------------------------------
-host = '172.21.98.21' # Hololens address
+#host = '172.21.98.21' # Hololens address KIT IoU
+host = '172.20.10.2' # Hololens address WLAN von Theodor
 buffer_length = 10 # Buffer length in seconds
 voxel_size = 0.01 # Voxel Downsampling Parameter
 max_depth = 3.0 # Maximum depth in meters
