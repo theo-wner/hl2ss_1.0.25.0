@@ -146,6 +146,7 @@ if __name__ == '__main__':
     # =============================================================================
     # Main Loop
     # =============================================================================
+    cnt = 0
     while True:
         vis.poll_events() # Wait for space button to be pressed
         vis.update_renderer()
@@ -167,6 +168,9 @@ if __name__ == '__main__':
             break
 
         if listener.space_pressed:
+            # Increment counter
+            cnt += 1
+
             # Get most recent PV and RM Depth Long Throw frames
             # -----------------------------------------------------------------------------
             _, data_depth = sink_depth.get_most_recent_frame()
@@ -186,8 +190,8 @@ if __name__ == '__main__':
 
             # Save PV image
             # -----------------------------------------------------------------------------
-            img_name = f'image_{data_pv.timestamp}.png'
-            cv2.imwrite(f'../data/images/{img_name}', image_bgr)
+            #img_name = f'image_{data_pv.timestamp}.png'
+            cv2.imwrite(f'../data/images/{cnt}', image_bgr)
 
             # Print PV Pose and Intrinsics
             # -----------------------------------------------------------------------------
