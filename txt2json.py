@@ -1,12 +1,3 @@
-# Define the rotation matrix (Rotation by x axis)
-#rotation = [[1, 0, 0, 0],
-#                    [0, 0, -1, 0],
-#                   [0, 1, 0, 0],
-#                    [0, 0, 0, 1]]
-
-# Multiply the rotation matrix with the pose matrix
-#matrix = rotation @ matrix_np
-
 import re
 import json
 import math
@@ -19,7 +10,7 @@ def read_pose_file(file_path):
 
 def parse_poses(content):
     pose_list = []
-    pose_pattern = re.compile(r'Image: (.*?)\nPose PV at time (\d+)(.*?)\[\[(.*?)\]\]', re.DOTALL)
+    pose_pattern = re.compile(r'Image: (.*?)\.png\nPose PV at time (\d+)(.*?)\[\[(.*?)\]\]', re.DOTALL)
 
     matches = pose_pattern.findall(content)
     for match in matches:
