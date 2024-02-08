@@ -105,6 +105,19 @@ if __name__ == '__main__':
     # -----------------------------------------------------------------------------
     hl2ss_lnm.start_subsystem_pv(host, port_pv)
 
+    # Download Calibration Data for PV
+    # -----------------------------------------------------------------------------
+    data_pv_cal = hl2ss_lnm.download_calibration_pv(host, hl2ss.StreamPort.PERSONAL_VIDEO, width_pv, height_pv, framerate_pv)
+    print('Calibration')
+    print(f'Focal length: {data_pv_cal.focal_length}')
+    print(f'Principal point: {data_pv_cal.principal_point}')
+    print(f'Radial distortion: {data_pv_cal.radial_distortion}')
+    print(f'Tangential distortion: {data_pv_cal.tangential_distortion}')
+    print('Projection')
+    print(data_pv_cal.projection)
+    print('Intrinsics')
+    print(data_pv_cal.intrinsics)
+
     # Start PV and RM Depth Long Throw streams
     # -----------------------------------------------------------------------------
     producer = hl2ss_mp.producer()
@@ -148,6 +161,12 @@ if __name__ == '__main__':
     # -----------------------------------------------------------------------------
     poses_path = os.path.join(data_path, 'poses.txt')
     f = open(poses_path, 'w')
+
+    # First write calibration data to file
+    # -----------------------------------------------------------------------------
+    f.write('Calibration Data PV\n')
+    f.write(f'Focal length: {data_pv_cal.focal_length}\n')
+    f.write(f'Principal point: {data_pv_cal.principal_point}\n\n')
 
     # =============================================================================
     # Main Loop

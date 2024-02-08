@@ -22,6 +22,21 @@ def parse_poses(content):
         # Extract numbers between square brackets and split on whitespace
         matrix = [list(map(float, re.findall(r'[-+]?\d*\.\d+|[-+]?\d+', line))) for line in matrix_lines]
 
+        # Convert to numpy array
+        matrix = np.array(matrix)
+
+        # Define the rotation matrix by the x axis
+        rot = np.array([[1, 0, 0, 0],
+                            [0, -1, 0, 0],
+                            [0, 0, -1, 0],
+                            [0, 0, 0, 1]])
+        
+        # Multiply the rotation matrix by the pose matrix
+        matrix = rot @ matrix
+
+        # Convert back to list
+        matrix = matrix.tolist()
+
         pose_list.append({
             "image_name": image_name,
             "timestamp": timestamp,
@@ -70,12 +85,19 @@ angle_x = math.atan(w / (fl_x * 2)) * 2
 angle_y = math.atan(h / (fl_y * 2)) * 2
 
 if __name__ == "__main__":
-    pose_file_path = "./data/poses.txt"
+    pose_file_path_train = "./data/poses_train.txt"
+    pose_file_path_test = "./data/poses_test.txt"
     json_output_path_train = "./data/transforms_train.json"
     json_output_path_test = "./data/transforms_test.json"
 
-    pose_content = read_pose_file(pose_file_path)
-    parsed_poses = parse_poses(pose_content)
-    json_output = create_json_output(parsed_poses, w, h, fl_x, fl_y, cx, cy, angle_x, angle_y)
-    save_json_output(json_output, json_output_path_train)
-    save_json_output(json_output, json_output_path_test)
+    pose_content_train = read_pose_file(pose_file_path_train)
+    pose_content_test = read_pose_file(pose_file_path_test)
+
+    parsed_poses_train = parse_poses(pose_content_train)
+    parsed_poses_test = parse_poses(pose_content_test)
+
+    json_output_train = create_json_output(parsed_poses_train, w, h, fl_x, fl_y, cx, cy, angle_x, angle_y)
+    json_output_test = create_json_output(parsed_poses_test, w, h, fl_x, fl_y, cx, cy, angle_x, angle_y)
+    
+    save_json_output(json_output_train, json_output_path_train)
+    save_json_output(json_output_test, json_output_path_test)
