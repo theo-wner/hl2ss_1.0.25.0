@@ -14,7 +14,7 @@ def parse_poses(content):
 
     matches = pose_pattern.findall(content)
     for match in matches:
-        image_name = match[0].strip()
+        image_name = f'{match[0].strip()}.png'
         timestamp = int(match[1])
         matrix_content = match[3].strip()
         matrix_lines = matrix_content.split('\n')
@@ -31,8 +31,8 @@ def parse_poses(content):
                             [0, 0, -1, 0],
                             [0, 0, 0, 1]])
         
-        # Multiply the rotation matrix by the pose matrix
-        matrix = rot @ matrix
+        # Multiply the rotation matrix by the pose matrix --> Only needed if processing with original GS implementation, not with Nerfstudio
+        #matrix = rot @ matrix
 
         # Convert back to list
         matrix = matrix.tolist()
@@ -59,6 +59,7 @@ def create_json_output(poses, w, h, fl_x, fl_y, cx, cy, angle_x, angle_y):
         "cy": cy,
         "w": w,
         "h": h,
+        "ply_file_path": "./points3d.ply",
         "frames": [
             {
                 "file_path": f"./images/{pose['image_name']}",
@@ -85,19 +86,25 @@ angle_x = math.atan(w / (fl_x * 2)) * 2
 angle_y = math.atan(h / (fl_y * 2)) * 2
 
 if __name__ == "__main__":
-    pose_file_path_train = "./data/poses_train.txt"
-    pose_file_path_test = "./data/poses_test.txt"
-    json_output_path_train = "./data/transforms_train.json"
-    json_output_path_test = "./data/transforms_test.json"
+    pose_file = "./data/poses.txt"
+    #pose_file_path_train = "./data/poses_train.txt"
+    #pose_file_path_test = "./data/poses_test.txt"
+    json_output_path = "./data/transforms.json"
+    #json_output_path_train = "./data/transforms_train.json"
+    #json_output_path_test = "./data/transforms_test.json"
 
-    pose_content_train = read_pose_file(pose_file_path_train)
-    pose_content_test = read_pose_file(pose_file_path_test)
+    #pose_content_train = read_pose_file(pose_file_path_train)
+    #pose_content_test = read_pose_file(pose_file_path_test)
+    pose_content = read_pose_file(pose_file)
 
-    parsed_poses_train = parse_poses(pose_content_train)
-    parsed_poses_test = parse_poses(pose_content_test)
+    #parsed_poses_train = parse_poses(pose_content_train)
+    #parsed_poses_test = parse_poses(pose_content_test)
+    parsed_poses_all = parse_poses(pose_content)
 
-    json_output_train = create_json_output(parsed_poses_train, w, h, fl_x, fl_y, cx, cy, angle_x, angle_y)
-    json_output_test = create_json_output(parsed_poses_test, w, h, fl_x, fl_y, cx, cy, angle_x, angle_y)
+    #json_output_train = create_json_output(parsed_poses_train, w, h, fl_x, fl_y, cx, cy, angle_x, angle_y)
+    #json_output_test = create_json_output(parsed_poses_test, w, h, fl_x, fl_y, cx, cy, angle_x, angle_y)
+    json_output_all = create_json_output(parsed_poses_all, w, h, fl_x, fl_y, cx, cy, angle_x, angle_y)
     
-    save_json_output(json_output_train, json_output_path_train)
-    save_json_output(json_output_test, json_output_path_test)
+    #save_json_output(json_output_train, json_output_path_train)
+    #save_json_output(json_output_test, json_output_path_test)
+    save_json_output(json_output_all, json_output_path)
