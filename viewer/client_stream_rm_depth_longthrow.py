@@ -18,7 +18,7 @@ import hl2ss_lnm
 # Settings --------------------------------------------------------------------
 
 # HoloLens address
-host = "192.168.1.7"
+host = "172.21.98.21"
 
 # Operating mode
 # 0: video
@@ -32,7 +32,7 @@ divisor = 1
 
 #------------------------------------------------------------------------------
 
-if (mode == hl2ss.StreamMode.MODE_2):
+if (mode == hl2ss.StreamMode.MODE_1):
     data = hl2ss_lnm.download_calibration_rm_depth_longthrow(host, hl2ss.StreamPort.RM_DEPTH_LONGTHROW)
     print('Calibration data')
     print('Image point to unit plane')

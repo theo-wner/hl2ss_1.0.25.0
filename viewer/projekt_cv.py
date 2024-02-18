@@ -79,6 +79,7 @@ host = '172.21.98.21' # Hololens address KIT IoU
 buffer_length = 10 # Buffer length in seconds
 voxel_size = 0.01 # Voxel Downsampling Parameter
 max_depth = 3.0 # Maximum depth in meters
+calibration_path = os.path.join('..', 'calibration')
 
 # Settings for Personal Video
 # -----------------------------------------------------------------------------
@@ -87,6 +88,7 @@ port_pv = hl2ss.StreamPort.PERSONAL_VIDEO
 width_pv = 1920
 height_pv = 1080
 framerate_pv = 30
+focus_pv = 1000 # In mm
 
 # Settings for Depth image
 # -----------------------------------------------------------------------------
@@ -107,7 +109,8 @@ if __name__ == '__main__':
 
     # Download Calibration Data for PV
     # -----------------------------------------------------------------------------
-    data_pv_cal = hl2ss_lnm.download_calibration_pv(host, hl2ss.StreamPort.PERSONAL_VIDEO, width_pv, height_pv, framerate_pv)
+    #data_pv_cal = hl2ss_lnm.download_calibration_pv(host, hl2ss.StreamPort.PERSONAL_VIDEO, width_pv, height_pv, framerate_pv)
+    data_pv_cal = hl2ss_3dcv.get_calibration_pv(host, port_pv, calibration_path, focus_pv, width_pv, height_pv, framerate_pv, False)
     print('Calibration')
     print(f'Focal length: {data_pv_cal.focal_length}')
     print(f'Principal point: {data_pv_cal.principal_point}')
@@ -117,6 +120,13 @@ if __name__ == '__main__':
     print(data_pv_cal.projection)
     print('Intrinsics')
     print(data_pv_cal.intrinsics)
+
+    # Download Calibration Data for RM Depth Long Throw
+    # -----------------------------------------------------------------------------
+    data_depth_cal = hl2ss_3dcv.get_calibration_rm(host, port_depth, calibration_path)
+    uv2xy = hl2ss_3dcv.compute_uv2xy(data_depth_cal.intrinsics, width_depth, height_depth)
+    xy1, scale = hl2ss_3dcv.rm_depth_compute_rays(uv2xy, data_depth_cal.scale)
+
 
     # Start PV and RM Depth Long Throw streams
     # -----------------------------------------------------------------------------
@@ -136,20 +146,14 @@ if __name__ == '__main__':
     sink_pv.get_attach_response()
     sink_depth.get_attach_response()
 
-    # Get RM Depth Long Throw calibration
-    # Calibration data will be downloaded if it's not in the calibration folder
-    # -----------------------------------------------------------------------------
-    calibration_path = os.path.join('..', 'calibration')
-    calibration_depth = hl2ss_3dcv.get_calibration_rm(host, port_depth, calibration_path)
-
-    uv2xy = hl2ss_3dcv.compute_uv2xy(calibration_depth.intrinsics, width_depth, height_depth)
-    xy1, scale = hl2ss_3dcv.rm_depth_compute_rays(uv2xy, calibration_depth.scale)
-
     # Create Open3D visualizer
     # -----------------------------------------------------------------------------
-    o3d_lt_intrinsics = o3d.camera.PinholeCameraIntrinsic(width_depth, height_depth, calibration_depth.intrinsics[0, 0], calibration_depth.intrinsics[1, 1], calibration_depth.intrinsics[2, 0], calibration_depth.intrinsics[2, 1])
+    o3d_lt_intrinsics = o3d.camera.PinholeCameraIntrinsic(width_depth, height_depth, data_depth_cal.intrinsics[0, 0], data_depth_cal.intrinsics[1, 1], data_depth_cal.intrinsics[2, 0], data_depth_cal.intrinsics[2, 1])
+
+    # Create 
     vis = o3d.visualization.Visualizer()
-    vis.create_window()
+    vis.create_window(width=1220, height=1000)
+
     pcd = o3d.geometry.PointCloud()
     first_pcd = True
 
@@ -210,6 +214,9 @@ if __name__ == '__main__':
             # -----------------------------------------------------------------------------
             image_rgb = data_pv.payload.image
             image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
+            cv2.namedWindow('Image', cv2.WINDOW_NORMAL)
+            cv2.moveWindow('Image', 2000, 0)
+            cv2.resizeWindow('Image', 640, 480)
             cv2.imshow('Image', image_bgr)
             cv2.waitKey(1)
 
@@ -237,17 +244,28 @@ if __name__ == '__main__':
 
             # Undistort and normalize depth image
             # -----------------------------------------------------------------------------
-            depth = hl2ss_3dcv.rm_depth_undistort(data_depth.payload.depth, calibration_depth.undistort_map)
+            depth = hl2ss_3dcv.rm_depth_undistort(data_depth.payload.depth, data_depth_cal.undistort_map)
             depth = hl2ss_3dcv.rm_depth_normalize(depth, scale)
 
             # Mask out points further away than 3m
             # -----------------------------------------------------------------------------
             depth[depth > max_depth] = 0
 
+            # Show Depth image
+            # -----------------------------------------------------------------------------
+            depth_fig = cv2.normalize(depth, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
+            cv2.namedWindow('Depth', cv2.WINDOW_NORMAL)
+            cv2.moveWindow('Depth', 2000, 550)
+            cv2.resizeWindow('Depth', 640, 480)
+            # take colomap hot from opencv and apply it to the depth image
+            depth_fig = cv2.applyColorMap(depth_fig, cv2.COLORMAP_HOT)
+            cv2.imshow('Depth', depth_fig)
+            cv2.waitKey(1)
+
             # Calculate pointcloud from depth image
             # -----------------------------------------------------------------------------
             depth_points         = hl2ss_3dcv.rm_depth_to_points(xy1, depth)
-            depth_to_world       = hl2ss_3dcv.camera_to_rignode(calibration_depth.extrinsics) @ hl2ss_3dcv.reference_to_world(data_depth.pose)
+            depth_to_world       = hl2ss_3dcv.camera_to_rignode(data_depth_cal.extrinsics) @ hl2ss_3dcv.reference_to_world(data_depth.pose)
             world_points      = hl2ss_3dcv.transform(depth_points, depth_to_world)
             world_points = world_points.reshape(-1, 3)
 
