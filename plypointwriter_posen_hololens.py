@@ -246,7 +246,7 @@ if __name__ == "__main__":
     pose_list = []
 
     # Read poses from json file ./data/transforms_train.json
-    with open('./data/transforms_train.json') as f:
+    with open('./data/transforms.json') as f:
         data = json.load(f)
 
     frames = data['frames']
